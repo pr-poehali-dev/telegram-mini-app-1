@@ -3,6 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+const API_URL = 'https://functions.poehali.dev/dc4f2a00-b620-4381-a989-025349e50549';
 
 interface PhotoStyle {
   id: string;
@@ -11,6 +14,15 @@ interface PhotoStyle {
   prompt: string;
   icon: string;
   gradient: string;
+  model?: 'flux' | 'sd';
+}
+
+interface TemplateExample {
+  id: string;
+  title: string;
+  imageUrl: string;
+  style: string;
+  prompt: string;
 }
 
 const photoStyles: PhotoStyle[] = [
@@ -20,7 +32,8 @@ const photoStyles: PhotoStyle[] = [
     description: 'Студийная съёмка высшего класса',
     prompt: 'professional studio portrait, soft lighting, elegant pose, high quality, detailed face',
     icon: 'User',
-    gradient: 'from-purple-500 to-pink-500'
+    gradient: 'from-purple-500 to-pink-500',
+    model: 'flux'
   },
   {
     id: 'fashion',
@@ -28,7 +41,8 @@ const photoStyles: PhotoStyle[] = [
     description: 'Стильная журнальная фотография',
     prompt: 'fashion photography, editorial style, trendy outfit, professional model pose, magazine quality',
     icon: 'Sparkles',
-    gradient: 'from-pink-500 to-rose-500'
+    gradient: 'from-pink-500 to-rose-500',
+    model: 'flux'
   },
   {
     id: 'cinematic',
@@ -36,7 +50,8 @@ const photoStyles: PhotoStyle[] = [
     description: 'Драматичное киношное освещение',
     prompt: 'cinematic portrait, dramatic lighting, movie scene, film grain, professional cinematography',
     icon: 'Film',
-    gradient: 'from-amber-500 to-orange-500'
+    gradient: 'from-amber-500 to-orange-500',
+    model: 'sd'
   },
   {
     id: 'nature',
@@ -44,7 +59,8 @@ const photoStyles: PhotoStyle[] = [
     description: 'Живописный природный фон',
     prompt: 'outdoor photography, beautiful nature background, natural lighting, scenic landscape',
     icon: 'TreePine',
-    gradient: 'from-emerald-500 to-teal-500'
+    gradient: 'from-emerald-500 to-teal-500',
+    model: 'sd'
   },
   {
     id: 'business',
@@ -149,17 +165,41 @@ const Index = () => {
     
     toast.success(`Создаю ${style.name.toLowerCase()}...`);
     
-    setTimeout(() => {
-      const mockImage = 'https://v3b.fal.media/files/b/tiger/XhG2PAMU0h1HONPDnGpjQ_output.png';
-      setGeneratedImages(prev => [{
-        url: mockImage,
-        style: style.name,
-        timestamp: Date.now()
-      }, ...prev]);
-      setGenerationCount(prev => prev + 1);
+    try {
+      const imageBase64 = uploadedPhoto.split(',')[1];
+      
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: style.model || 'flux',
+          prompt: style.prompt,
+          image: imageBase64,
+          style: style.description
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.image_url) {
+        setGeneratedImages(prev => [{
+          url: data.image_url,
+          style: style.name,
+          timestamp: Date.now()
+        }, ...prev]);
+        setGenerationCount(prev => prev + 1);
+        toast.success('Готово! ✨');
+      } else {
+        toast.error(data.error || 'Ошибка генерации');
+      }
+    } catch (error) {
+      console.error('Generation error:', error);
+      toast.error('Не удалось создать фото');
+    } finally {
       setIsGenerating(false);
-      toast.success('Готово! ✨');
-    }, 2500);
+    }
   };
 
   return (
@@ -181,32 +221,39 @@ const Index = () => {
           </div>
         </header>
 
-        <Card className="p-6 animate-fade-in">
-          <div className="flex flex-col items-center gap-4">
-            {!uploadedPhoto ? (
-              <>
-                <div className="w-40 h-40 rounded-2xl bg-muted flex items-center justify-center border-2 border-dashed border-muted-foreground/30">
-                  <Icon name="ImagePlus" size={48} className="text-muted-foreground/50" />
-                </div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handlePhotoUpload}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <Button 
-                  onClick={() => fileInputRef.current?.click()}
-                  size="lg"
-                  className="gap-2"
-                >
-                  <Icon name="Upload" size={20} />
-                  Загрузить фото
-                </Button>
-              </>
-            ) : (
-              <>
-                <div className="relative w-40 h-40 rounded-2xl overflow-hidden group">
+        <Tabs defaultValue="generate" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="generate">Генерация</TabsTrigger>
+            <TabsTrigger value="examples">Примеры</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="generate">
+            <Card className="p-6 animate-fade-in">
+              <div className="flex flex-col items-center gap-4">
+                {!uploadedPhoto ? (
+                  <>
+                    <div className="w-40 h-40 rounded-2xl bg-muted flex items-center justify-center border-2 border-dashed border-muted-foreground/30">
+                      <Icon name="ImagePlus" size={48} className="text-muted-foreground/50" />
+                    </div>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handlePhotoUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <Button 
+                      onClick={() => fileInputRef.current?.click()}
+                      size="lg"
+                      className="gap-2"
+                    >
+                      <Icon name="Upload" size={20} />
+                      Загрузить фото
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="relative w-40 h-40 rounded-2xl overflow-hidden group">
                   <img 
                     src={uploadedPhoto} 
                     alt="Uploaded" 
@@ -232,10 +279,10 @@ const Index = () => {
                 />
               </>
             )}
-          </div>
-        </Card>
+              </div>
+            </Card>
 
-        <section className="space-y-4 animate-fade-in">
+            <section className="space-y-4 animate-fade-in">
           <h2 className="text-2xl font-semibold flex items-center gap-2">
             <Icon name="Palette" size={24} />
             Выберите стиль
@@ -268,67 +315,150 @@ const Index = () => {
                   />
                 </div>
               </Card>
-            ))}
-          </div>
-        </section>
-
-        {isGenerating && (
-          <div className="flex flex-col items-center justify-center py-12 space-y-4 animate-fade-in">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-secondary animate-pulse-glow flex items-center justify-center">
-              <Icon name="Sparkles" size={32} className="text-white animate-spin" />
+              ))}
             </div>
-            <p className="text-lg font-medium">Создаю магию...</p>
-          </div>
-        )}
+          </section>
 
-        {generatedImages.length > 0 && (
-          <section className="space-y-4 animate-fade-in">
+          {isGenerating && (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4 animate-fade-in">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-secondary animate-pulse-glow flex items-center justify-center">
+                <Icon name="Sparkles" size={32} className="text-white animate-spin" />
+              </div>
+              <p className="text-lg font-medium">Создаю магию...</p>
+            </div>
+          )}
+
+          {generatedImages.length > 0 && (
+            <section className="space-y-4 animate-fade-in">
+              <h2 className="text-2xl font-semibold flex items-center gap-2">
+                <Icon name="Images" size={24} />
+                Ваши фото ({generatedImages.length})
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {generatedImages.map((image, index) => (
+                  <Card 
+                    key={index} 
+                    className="overflow-hidden group cursor-pointer animate-scale-in hover:shadow-2xl transition-all"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <div className="relative aspect-square">
+                      <img 
+                        src={image.url} 
+                        alt={`Generated ${index + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                        <Button 
+                          variant="secondary" 
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = image.url;
+                            link.download = `neurogen-${image.style}-${index + 1}.png`;
+                            link.click();
+                            toast.success('Фото скачано! ✅');
+                          }}
+                        >
+                          <Icon name="Download" size={16} className="mr-2" />
+                          Скачать
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-muted">
+                      <p className="text-sm font-medium text-center">
+                        {image.style}
+                      </p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </section>
+          )}
+        </TabsContent>
+
+        <TabsContent value="examples">
+          <section className="space-y-4">
             <h2 className="text-2xl font-semibold flex items-center gap-2">
-              <Icon name="Images" size={24} />
-              Ваши фото ({generatedImages.length})
+              <Icon name="Lightbulb" size={24} />
+              Готовые шаблоны и примеры
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {generatedImages.map((image, index) => (
+              {[
+                {
+                  title: 'Профессиональный портрет',
+                  imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+                  style: 'Студийное освещение',
+                  prompt: 'professional studio portrait, soft lighting, elegant pose'
+                },
+                {
+                  title: 'Модная съёмка',
+                  imageUrl: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400&h=400&fit=crop',
+                  style: 'Журнальный стиль',
+                  prompt: 'fashion photography, editorial style, trendy outfit'
+                },
+                {
+                  title: 'Кинематограф',
+                  imageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
+                  style: 'Драматичное освещение',
+                  prompt: 'cinematic portrait, dramatic lighting, movie scene'
+                },
+                {
+                  title: 'На природе',
+                  imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
+                  style: 'Естественный свет',
+                  prompt: 'outdoor photography, natural lighting, scenic landscape'
+                },
+                {
+                  title: 'Гламур',
+                  imageUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop',
+                  style: 'Роскошный стиль',
+                  prompt: 'glamour photography, luxury style, elegant makeup'
+                },
+                {
+                  title: 'Художественный',
+                  imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400&fit=crop',
+                  style: 'Креативная композиция',
+                  prompt: 'artistic portrait, creative composition, fine art'
+                }
+              ].map((example, index) => (
                 <Card 
-                  key={index} 
-                  className="overflow-hidden group cursor-pointer animate-scale-in hover:shadow-2xl transition-all"
+                  key={index}
+                  className="overflow-hidden group animate-scale-in hover:shadow-xl transition-all cursor-pointer"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
                   <div className="relative aspect-square">
                     <img 
-                      src={image.url} 
-                      alt={`Generated ${index + 1}`}
+                      src={example.imageUrl} 
+                      alt={example.title}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+                      <p className="text-white text-xs mb-2 opacity-80">{example.prompt}</p>
                       <Button 
                         variant="secondary" 
                         size="sm"
-                        className="w-full"
                         onClick={() => {
-                          const link = document.createElement('a');
-                          link.href = image.url;
-                          link.download = `neurogen-${image.style}-${index + 1}.png`;
-                          link.click();
-                          toast.success('Фото скачано! ✅');
+                          toast.info('Загрузите своё фото и выберите этот стиль!');
                         }}
                       >
-                        <Icon name="Download" size={16} className="mr-2" />
-                        Скачать
+                        <Icon name="Wand2" size={16} className="mr-2" />
+                        Применить стиль
                       </Button>
                     </div>
                   </div>
-                  <div className="p-3 bg-muted">
-                    <p className="text-sm font-medium text-center">
-                      {image.style}
-                    </p>
+                  <div className="p-4 space-y-1">
+                    <h3 className="font-semibold">{example.title}</h3>
+                    <p className="text-sm text-muted-foreground">{example.style}</p>
                   </div>
                 </Card>
               ))}
             </div>
           </section>
-        )}
+        </TabsContent>
+      </Tabs>
       </div>
     </div>
   );

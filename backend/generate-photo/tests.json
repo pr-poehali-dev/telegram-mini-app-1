@@ -1,0 +1,35 @@
+{
+  "tests": [
+    {
+      "name": "Test FLUX generation",
+      "method": "POST",
+      "body": {
+        "model": "flux",
+        "prompt": "professional portrait photo",
+        "style": "cinematic lighting, high quality"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "image_url": "string",
+        "model": "flux"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Test Stable Diffusion generation",
+      "method": "POST",
+      "body": {
+        "model": "sd",
+        "prompt": "artistic portrait",
+        "style": "vibrant colors"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "model": "sd"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
