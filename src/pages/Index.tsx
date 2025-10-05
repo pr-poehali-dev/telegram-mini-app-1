@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
@@ -132,15 +132,44 @@ interface GeneratedImage {
   url: string;
   style: string;
   timestamp: number;
+  id: string;
 }
 
 const Index = () => {
   const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<PhotoStyle | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [favorites, setFavorites] = useState<GeneratedImage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationCount, setGenerationCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const savedFavorites = localStorage.getItem('neurogen-favorites');
+    if (savedFavorites) {
+      setFavorites(JSON.parse(savedFavorites));
+    }
+  }, []);
+
+  const toggleFavorite = (image: GeneratedImage) => {
+    const isFavorite = favorites.some(fav => fav.id === image.id);
+    let newFavorites: GeneratedImage[];
+    
+    if (isFavorite) {
+      newFavorites = favorites.filter(fav => fav.id !== image.id);
+      toast.success('Удалено из избранного');
+    } else {
+      newFavorites = [...favorites, image];
+      toast.success('Добавлено в избранное ⭐');
+    }
+    
+    setFavorites(newFavorites);
+    localStorage.setItem('neurogen-favorites', JSON.stringify(newFavorites));
+  };
+
+  const isFavorite = (imageId: string) => {
+    return favorites.some(fav => fav.id === imageId);
+  };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -184,11 +213,13 @@ const Index = () => {
       const data = await response.json();
       
       if (data.success && data.image_url) {
-        setGeneratedImages(prev => [{
+        const newImage: GeneratedImage = {
           url: data.image_url,
           style: style.name,
-          timestamp: Date.now()
-        }, ...prev]);
+          timestamp: Date.now(),
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        };
+        setGeneratedImages(prev => [newImage, ...prev]);
         setGenerationCount(prev => prev + 1);
         toast.success('Готово! ✨');
       } else {
@@ -222,8 +253,16 @@ const Index = () => {
         </header>
 
         <Tabs defaultValue="generate" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="generate">Генерация</TabsTrigger>
+            <TabsTrigger value="favorites" className="relative">
+              Избранное
+              {favorites.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+                  {favorites.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="examples">Примеры</TabsTrigger>
           </TabsList>
 
@@ -348,6 +387,21 @@ const Index = () => {
                         alt={`Generated ${index + 1}`}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
+                      <Button
+                        size="sm"
+                        variant={isFavorite(image.id) ? "default" : "secondary"}
+                        className="absolute top-3 right-3 z-10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(image);
+                        }}
+                      >
+                        <Icon 
+                          name={isFavorite(image.id) ? "Star" : "StarOff"} 
+                          size={16} 
+                          className={isFavorite(image.id) ? "fill-current" : ""}
+                        />
+                      </Button>
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                         <Button 
                           variant="secondary" 
@@ -376,6 +430,86 @@ const Index = () => {
               </div>
             </section>
           )}
+        </TabsContent>
+
+        <TabsContent value="favorites">
+          <section className="space-y-4">
+            <h2 className="text-2xl font-semibold flex items-center gap-2">
+              <Icon name="Star" size={24} className="fill-current text-primary" />
+              Избранные фото ({favorites.length})
+            </h2>
+            
+            {favorites.length === 0 ? (
+              <Card className="p-12 text-center">
+                <Icon name="StarOff" size={64} className="mx-auto mb-4 text-muted-foreground/50" />
+                <h3 className="text-lg font-medium mb-2">Пока пусто</h3>
+                <p className="text-muted-foreground">
+                  Добавляйте понравившиеся фото в избранное, нажимая на звёздочку
+                </p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {favorites.map((image, index) => (
+                  <Card 
+                    key={image.id} 
+                    className="overflow-hidden group cursor-pointer animate-scale-in hover:shadow-2xl transition-all"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <div className="relative aspect-square">
+                      <img 
+                        src={image.url} 
+                        alt={`Favorite ${index + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      />
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="absolute top-3 right-3 z-10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(image);
+                        }}
+                      >
+                        <Icon name="Star" size={16} className="fill-current" />
+                      </Button>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4 gap-2">
+                        <Button 
+                          variant="secondary" 
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = image.url;
+                            link.download = `favorite-${image.style}-${index + 1}.png`;
+                            link.click();
+                            toast.success('Фото скачано! ✅');
+                          }}
+                        >
+                          <Icon name="Download" size={16} className="mr-2" />
+                          Скачать
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(image);
+                          }}
+                        >
+                          <Icon name="Trash2" size={16} />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-muted">
+                      <p className="text-sm font-medium text-center">
+                        {image.style}
+                      </p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
         </TabsContent>
 
         <TabsContent value="examples">
